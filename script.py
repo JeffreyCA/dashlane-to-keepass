@@ -73,11 +73,11 @@ def writeEntries(filename, entries, groupName = 'General', verbose = False):
         processed += 1
         pwentry = ET.SubElement(pwlist, 'pwentry')
 
-        ET.SubElement(pwentry, 'group').text = groupName
-        ET.SubElement(pwentry, 'title').text = entry.title
-        ET.SubElement(pwentry, 'username').text = entry.username
-        ET.SubElement(pwentry, 'url').text = entry.url
-        ET.SubElement(pwentry, 'password').text = entry.password
+        ET.SubElement(pwentry, 'group').text = groupName.decode('utf8')
+        ET.SubElement(pwentry, 'title').text = entry.title.decode('utf8')
+        ET.SubElement(pwentry, 'username').text = entry.username.decode('utf8')
+        ET.SubElement(pwentry, 'url').text = entry.url.decode('utf8')
+        ET.SubElement(pwentry, 'password').text = entry.password.decode('utf8')
 
         note = ''
 
@@ -91,7 +91,7 @@ def writeEntries(filename, entries, groupName = 'General', verbose = False):
             note += entry.note
         
         if note:
-            ET.SubElement(pwentry, 'notes').text = note
+            ET.SubElement(pwentry, 'notes').text = note.decode('utf8')
 
         if verbose:
             print('Processing ' + entry.url)
