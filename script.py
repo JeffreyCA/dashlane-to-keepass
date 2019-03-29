@@ -69,7 +69,7 @@ def readCsv(filename, verbose = False):
                         processed += 1
                         entries.append(PWEntry(name, site, user, secondary, email, password, note))
                     elif verbose:
-                        print('Skipped[0]: ' + str(row))
+                        print('Skipped: ' + str(row))
             except:
                 print(traceback.format_exc())
 
