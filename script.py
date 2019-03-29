@@ -1,6 +1,8 @@
 import argparse
 import csv
+import io
 import os.path
+import re
 import traceback
 import validators
 import xml.etree.ElementTree as ET
@@ -11,22 +13,23 @@ except ImportError:
     from io import StringIO
 
 class PWEntry:
-    def __init__(self, title, url, username, email, password, note):
+    def __init__(self, title, url, username, secondary, email, password, note):
         self.title = title
         self.url = url
         self.username = username
+        self.secondary = secondary
         self.email = email
         self.password = password
         self.note = note
 
-def isAmbiguous(text):
+def hasDoubleQuotes(text):
     return '"' in text
 
 def isValidSite(text):
-    return validators.domain(text) or validators.ip_address.ipv4(text) or validators.ip_address.ipv6(text)
+    return validators.url(text) or validators.url('https://' + text) or validators.domain(text) or validators.ip_address.ipv4(text) or validators.ip_address.ipv6(text)
 
 def readCsv(filename, verbose = False):
-    with open(filename, 'rt') as csvfile:
+    with io.open(filename, 'rt', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile, quotechar='"', delimiter=',', doublequote=False)
         ambiguousEntries = []
         entries = []
@@ -34,21 +37,29 @@ def readCsv(filename, verbose = False):
 
         for row in reader:
             try:
-                if len(row) >= 5:
-
+                if len(row) >= 7:
                     name = row[0]
                     site = row[1]
                     user = row[2]
-                    email = row[3] if row[4] else ''
-                    password = row[4] if email else row[3]
-                    note = row[5] if (len(row) > 5 and row[5]) else ''
+                    email = row[3]
+                    secondary = row[4]
+                    password = row[5]
+                    note = row[6]
 
-                    if isAmbiguous(note):
+                    if not user:
+                        if email:
+                            user = email
+                            email = ''
+                        elif secondary:
+                            user = secondary
+                            secondary = ''
+
+                    if hasDoubleQuotes(note):
                         note = note.replace('"', '')
 
-                    entry = PWEntry(name, site, user, email, password, note)
+                    entry = PWEntry(name, site, user, secondary, email, password, note)
 
-                    if isAmbiguous(email) or isAmbiguous(password) or (len(row) > 5 and isAmbiguous(note)):
+                    if hasDoubleQuotes(email) or hasDoubleQuotes(password) or (len(row) > 7 and hasDoubleQuotes(note)):
                         if verbose:
                             print('Skipped: ' + site)
                         ambiguousEntries.append(entry)
@@ -56,10 +67,9 @@ def readCsv(filename, verbose = False):
 
                     if isValidSite(site):
                         processed += 1
-                        entries.append(PWEntry(name, site, user, email, password, note))
+                        entries.append(PWEntry(name, site, user, secondary, email, password, note))
                     elif verbose:
-                        print('Skipped: ' + str(row))
-
+                        print('Skipped[0]: ' + str(row))
             except:
                 print(traceback.format_exc())
 
@@ -73,16 +83,19 @@ def writeEntries(filename, entries, groupName = 'General', verbose = False):
         processed += 1
         pwentry = ET.SubElement(pwlist, 'pwentry')
 
-        ET.SubElement(pwentry, 'group').text = groupName.decode('utf8')
-        ET.SubElement(pwentry, 'title').text = entry.title.decode('utf8')
-        ET.SubElement(pwentry, 'username').text = entry.username.decode('utf8')
-        ET.SubElement(pwentry, 'url').text = entry.url.decode('utf8')
-        ET.SubElement(pwentry, 'password').text = entry.password.decode('utf8')
+        ET.SubElement(pwentry, 'group').text = groupName
+        ET.SubElement(pwentry, 'title').text = entry.title
+        ET.SubElement(pwentry, 'username').text = entry.username
+        ET.SubElement(pwentry, 'url').text = entry.url
+        ET.SubElement(pwentry, 'password').text = entry.password
 
         note = ''
 
         if entry.email:
             note += 'email: ' + entry.email
+
+        if entry.secondary:
+            note += '\nsecondary: ' + entry.secondary
 
         if entry.note:
             # Append note after above email
@@ -91,7 +104,7 @@ def writeEntries(filename, entries, groupName = 'General', verbose = False):
             note += entry.note
         
         if note:
-            ET.SubElement(pwentry, 'notes').text = note.decode('utf8')
+            ET.SubElement(pwentry, 'notes').text = note
 
         if verbose:
             print('Processing ' + entry.url)
@@ -99,11 +112,34 @@ def writeEntries(filename, entries, groupName = 'General', verbose = False):
     tree = ET.ElementTree(pwlist)
     indent(pwlist)
 
-    tree.write(filename, encoding='UTF-8', xml_declaration=True)
+    xml_str = ET.tostring(pwlist).decode()
+    xml_str = escape_quotes(xml_str)
     
+    text_file = open(filename, 'w')
+    text_file.write(xml_str)
+    text_file.close()
+
     if verbose:
         print('')
+        
     print('Successfully converted ' + str(processed) + ' password entries.')
+
+
+def html_escape(text):
+    quotation_escape_table = {
+        "'": "&apos;"
+    }
+    return "".join(quotation_escape_table.get(c, c) for c in text)
+
+def escape_tag(m):
+    tag = m.group(1)
+    content = m.group(2)
+
+    return '<' + tag + '>' + html_escape(content) + '</' + tag + '>'
+
+def escape_quotes(xml_str):
+    replaced_text = re.sub(r'<(\w+)>(.+?)</\w+>', escape_tag, xml_str)
+    return replaced_text
 
 def outputAmbiguousEntries(ambiguousEntries):
     if ambiguousEntries:
