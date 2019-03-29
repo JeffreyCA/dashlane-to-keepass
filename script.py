@@ -3,6 +3,7 @@ import csv
 import io
 import os.path
 import re
+import sys
 import traceback
 import validators
 import xml.etree.ElementTree as ET
@@ -11,6 +12,14 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
+
+
+# Force UTF-8 encoding on Python 2.x
+try:
+    reload(sys)
+    sys.setdefaultencoding('utf8')
+except:
+	pass
 
 class PWEntry:
     def __init__(self, title, url, username, secondary, email, password, note):
@@ -69,7 +78,7 @@ def readCsv(filename, verbose = False):
                         processed += 1
                         entries.append(PWEntry(name, site, user, secondary, email, password, note))
                     elif verbose:
-                        print('Skipped: ' + str(row))
+                        print('Skipped[0]: ' + str(row))
             except:
                 print(traceback.format_exc())
 
